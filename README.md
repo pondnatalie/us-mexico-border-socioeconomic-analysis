@@ -2,23 +2,30 @@
 
 An end-to-end data pipeline built in R and visualized in Tableau investigating regional disparities across 23 southwestern U.S. border counties versus national benchmarks.
 
-🔗 **Live Tableau Storyboard:** [Interactive Presentation on Tableau Public](https://public.tableau.com/app/profile/kendra.dawson/viz/Group5_Deliverable3/Presentation)
+**Live Tableau Storyboard:** [Interactive Presentation on Tableau Public](https://public.tableau.com/app/profile/kendra.dawson/viz/Group5_Deliverable3/Presentation)
 
 ---
 
-## 📌 Executive Summary & Core Findings
+## Project Overview & Key Takeaways
 
-This project quantifies geographic disparities along the U.S.–Mexico border across five core socioeconomic pillars: **Poverty**, **Food Insecurity**, **Food Access**, **Rent-to-Income Burden**, and **Educational Attainment**. By synthesizing multi-agency federal data with granular county records, the analysis evaluates structural divergence between border communities and the nationwide average:
+Living along the U.S.–Mexico border comes with unique economic realities that often get masked in broad, state-wide summaries. For this project, we wanted to look at what the data actually shows across 23 target border counties in California, Arizona, New Mexico, and Texas, evaluating five core areas: **poverty**, **food insecurity**, **food access**, **housing cost burdens**, and **education**.
 
-* **Poverty & Income Disparity:** Targeted border counties experience systemic variance in poverty concentration, with rent-to-income burdens disproportionately impacting lower-income municipalities across Texas, New Mexico, Arizona, and California.
-* **Food Access vs. Insecurity:** While national food insecurity baseline metrics remain steady, regional food deserts (measured via low-access population shares within 1 mile) correlate heavily with geographic isolation in remote border regions.
-* **Educational Pipeline Drops:** Educational attainment rates show clear bifurcations between rural border pockets and urban border transit hubs (e.g., San Diego County vs. Starr/Zapata County).
+Here is what stood out when comparing these counties to nationwide benchmarks:
+
+* **Housing & Income Strains:** While rent prices along many parts of the border look lower on paper, local median incomes are significantly lower too. This creates a severe rent-to-income squeeze, leaving households with far less breathing room than national averages suggest.
+* **Food Deserts vs. Food Insecurity:** Higher food insecurity doesn't just stem from income—it is heavily tied to physical access. In rural border communities, high shares of the population live more than a mile from a grocery store, making access a geographic hurdle alongside an economic one.
+* **The Education Divide:** Attainment numbers show stark contrasts depending on how urban the county is. High-density transit hubs like San Diego County trend closer to national college completion rates, whereas smaller, rural border counties face sharp drop-offs in post-secondary education.
 
 ---
 
-## 🛠️ Tech Stack & Methodology
+## Tools & Packages Used
 
-* **Languages & Environments:** R (RStudio / R Markdown)
-* **Data Manipulation & Pipeline:** `dplyr`, `tidyr`, `readxl`, `readr`, `stringr`
-* **Visual Analytics & Storytelling:** Tableau Desktop / Tableau Public
-* **Geographic Scope:** 23 border counties spanning California, Arizona, New Mexico, and Texas
+* **Analysis & Data Cleaning:** R (R Markdown, RStudio)
+* **Core R Packages:** `dplyr`, `tidyr`, `readxl`, `stringr`
+* **Dashboards & Visualization:** Tableau Public
+* **Scope:** 23 border counties across CA, AZ, NM, and TX compared against aggregate U.S. figures
+
+### Presentation Walkthrough
+Click below to watch our team present the key findings and Tableau storyboard:
+
+[![Presentation Walkthrough](https://img.youtube.com/vi/Y9s8giaXZvE/hqdefault.jpg)](https://www.youtube.com/watch?v=Y9s8giaXZvE)
