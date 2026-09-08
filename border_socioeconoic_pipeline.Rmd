@@ -1,0 +1,474 @@
+---
+title: "Socioeconomic Disparities Pipeline: U.S. Border Counties"
+author: "Kendra Dawson and Natalie Pond"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Install and load necessary modules
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+```
+
+Creating Vector
+
+```{r}
+# Create a vector of your target counties and states for easy filtering
+US_border_counties <- data.frame(
+  State_Name = c("California", "California",
+                 "Arizona", "Arizona", "Arizona", "Arizona",
+                 "New Mexico", "New Mexico", "New Mexico",
+                 "Texas", "Texas", "Texas", "Texas", "Texas", "Texas",
+                 "Texas", "Texas", "Texas", "Texas", "Texas", "Texas", "Texas", "Texas"),
+  County = c("San Diego County", "Imperial County",
+             "Yuma County", "Pima County", "Santa Cruz County", "Cochise County",
+             "Hidalgo County", "Luna County", "Doña Ana County",
+             "El Paso County", "Hudspeth County", "Jeff Davis County",
+             "Presidio County", "Brewster County", "Terrell County",
+             "Val Verde County", "Kinney County", "Maverick County",
+             "Webb County", "Zapata County", "Starr County", "Hidalgo County", "Cameron County")
+)
+```
+
+Food Insecurity Variable
+
+```{r}
+# Read in data 
+
+US_food_insecurity <- read_excel("MMG2025_2019-2023_Data_To_Share.xlsx", sheet = "County")
+
+head(US_food_insecurity) # Check the data 
+
+# Create US total data frame while averaging all the years together per county
+US_total <- US_food_insecurity %>%
+  dplyr::summarise(
+    US_Food_Insecurity_Rate = mean(`Overall Food Insecurity Rate`, na.rm = TRUE)
+  )
+
+US_total
+
+# Separate the "County, State" column into two columns
+US_food_insecurity <- US_food_insecurity %>%
+  tidyr::separate(
+    col = `County, State`,           # The column to separate
+    into = c("County", "State_Name"), # New column names
+    sep = ", ",                      # Separator to split on
+    remove = TRUE                    # Remove the original column
+  )
+
+# Check the result
+head(US_food_insecurity)
+
+# Filter and calculate average food insecurity rates for border counties
+US_border_county_data <- US_food_insecurity %>%
+  dplyr::inner_join(US_border_counties, by = c("County", "State_Name")) %>%
+  dplyr::group_by(County, State_Name) %>%
+  dplyr::summarise(
+    Avg_Food_Insecurity_Rate = mean(`Overall Food Insecurity Rate`, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# View the result
+print(US_border_county_data)
+
+```
+
+Poverty Rate Variable
+
+```{r}
+
+
+## US Total Poverty Rates 
+# Read in the data 
+US_poverty <- read_excel("Poverty Rate US past 5 years.xlsx", sheet = "Data")
+
+head(US_poverty) # Check the data 
+
+US_total <- US_total %>%
+  dplyr::mutate(
+    US_Poverty_Rate = US_poverty[[3, 6]]
+  )
+US_total
+
+## County Poverty Rates
+
+# Read data
+US_county_poverty <- read_excel("Poverty Rate per county past 5 years.xlsx", sheet = "Data")
+
+# Get county column indices (every 5th column starting from the first county)
+county_cols <- names(US_county_poverty)[stringr::str_detect(names(US_county_poverty), "County")]
+county_indices <- which(names(US_county_poverty) %in% county_cols)
+
+# Extract all data at once using vectorized operations
+US_poverty_data <- data.frame(
+  County = stringr::str_extract(county_cols, ".*?County") %>% stringr::str_trim(),
+  State_Name = stringr::str_extract(county_cols, "(?<=,\\s).*") %>% stringr::str_trim(),
+  Poverty_Rate = US_county_poverty[3, county_indices + 4] %>%
+    unlist() %>%
+    stringr::str_remove("%") %>%
+    as.numeric() / 100
+)
+
+# Join with your existing data
+US_border_county_data <- US_border_county_data %>%
+  dplyr::left_join(US_poverty_data, by = c("County", "State_Name"))
+
+US_border_county_data
+```
+
+Educational Attainment Variable 
+
+```{r}
+
+# Read in the data 
+
+US_education <- read_excel("Educational Attainment US total past 5 years.S1501-2025-11-18T220033.xlsx", sheet = "Data")
+
+head(US_education)
+
+# Clean and extract the education rates
+education_rates <- US_education %>%
+  # Filter for rows containing education attainment data
+  dplyr::filter(stringr::str_detect(...1, "High school graduate or higher|Bachelor's degree or higher")) %>%
+  # Select the label and percentage columns
+  dplyr::select(education_type = ...1, percent_estimate = ...4) %>%
+  # Convert percentages to numeric (remove % and convert)
+  dplyr::mutate(
+    percent_numeric = dplyr::case_when(
+      stringr::str_detect(percent_estimate, "%") ~ as.numeric(stringr::str_remove(percent_estimate, "%")),
+      TRUE ~ as.numeric(percent_estimate) * 100  # Convert decimal to percentage
+    )
+  ) %>%
+  # Group by education type and calculate average
+  dplyr::group_by(education_type) %>%
+  dplyr::summarise(avg_rate = mean(percent_numeric, na.rm = TRUE), .groups = "drop")
+
+# Extract the specific values
+avg_hs_rate <- education_rates %>%
+  dplyr::filter(education_type == "High school graduate or higher") %>%
+  dplyr::pull(avg_rate)
+
+avg_bachelor_rate <- education_rates %>%
+  dplyr::filter(education_type == "Bachelor's degree or higher") %>%
+  dplyr::pull(avg_rate)
+
+# Add to your existing US_total dataframe
+US_total <- US_total %>%
+  dplyr::mutate(
+    US_HS_Graduate_Rate = paste0(round(avg_hs_rate, 1), "%"),
+    US_Bachelor_Rate = paste0(round(avg_bachelor_rate, 1), "%")
+  )
+
+# View the result
+print(US_total)
+
+## Read in County Education Data 
+county_education <- read_excel("Educational Attainment per county last 5 years.xlsx", sheet = "Data")
+
+county_education
+
+# Function to extract percentages and calculate averages
+process_education_data <- function(data) {
+  # Get column names that contain county names (every 12th column starting from 2)
+  county_cols <- seq(2, ncol(data), by = 12)
+  county_names <- names(data)[county_cols]
+  
+  # Initialize results dataframe
+  results <- data.frame(
+    County = character(),
+    Avg_HS_or_Higher = numeric(),
+    Avg_Bachelors_or_Higher = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  # Process each county
+  for(i in seq_along(county_cols)) {
+    col_start <- county_cols[i]
+    county_name <- county_names[i]
+    
+    # Extract percentage column (2 positions after county name column)
+    pct_col <- col_start + 2
+    
+    if(pct_col <= ncol(data)) {
+      # Get all percentage values from this county
+      pct_values <- data[[pct_col]]
+      
+      # Find rows with "High school graduate or higher" and "Bachelor's degree or higher"
+      hs_rows <- which(grepl("High school graduate or higher", data[[1]], ignore.case = TRUE))
+      bach_rows <- which(grepl("Bachelor's degree or higher", data[[1]], ignore.case = TRUE))
+      
+      # Extract percentages for high school and bachelor's
+      hs_pcts <- pct_values[hs_rows]
+      bach_pcts <- pct_values[bach_rows]
+      
+      # Convert percentage strings to numeric (remove % and convert)
+      hs_numeric <- as.numeric(gsub("%", "", hs_pcts)) / 100
+      bach_numeric <- as.numeric(gsub("%", "", bach_pcts)) / 100
+      
+      # Remove NA values and calculate averages
+      hs_avg <- mean(hs_numeric, na.rm = TRUE)
+      bach_avg <- mean(bach_numeric, na.rm = TRUE)
+      
+      # Add to results
+      results <- rbind(results, data.frame(
+        County = county_name,
+        Avg_HS_or_Higher = hs_avg,
+        Avg_Bachelors_or_Higher = bach_avg
+      ))
+    }
+  }
+  
+  return(results)
+}
+
+# Process the education data
+education_averages <- process_education_data(county_education)
+
+# Extract state information BEFORE cleaning county names
+education_averages <- education_averages %>%
+  dplyr::mutate(
+    # Extract state from the original county string
+    State_Name = stringr::str_extract(County, "(?<=, ).*$"),
+    # Clean county name (remove state part)
+    County = stringr::str_replace(County, ",.*", "") %>%
+      stringr::str_trim()
+  )
+
+# Join with your border county data using BOTH County and State_Name
+US_border_county_data <- US_border_county_data %>%
+  dplyr::left_join(
+    education_averages %>% 
+      dplyr::select(County, State_Name, Avg_HS_or_Higher, Avg_Bachelors_or_Higher), 
+    by = c("County", "State_Name")
+  )
+
+# View the results
+print(US_border_county_data)
+
+```
+
+Rent / Income Variable 
+
+```{r}
+
+library(readr)
+
+## Read in Rent Data 
+
+average_rent <- read_csv("RentData.csv")
+
+head(average_rent)
+
+# Check class of rent variable 
+class(average_rent$B25058EST1)
+
+## Create US Rent DF - Multiply by 12 to get annual rent 
+US_Average_Rent <- average_rent %>%
+  dplyr::summarise(
+    US_Average_Rent = mean(B25058EST1, na.rm = TRUE) * 12
+  )
+
+# Add the annual rent into the US_total df
+US_total <- US_total %>%
+  dplyr::mutate(
+    US_Rent = US_Average_Rent$US_Average_Rent
+  )
+
+# View result
+print(US_total)
+
+# Filter and calculate average rent rates for border counties
+border_rents <- average_rent %>%              # average_rent is RentData.csv
+  dplyr::mutate(
+    State_join  = STATE_NAME,                 # "Arizona", "California", etc.
+    County_join = paste0(NAME, " County")     # "Cochise County", "El Paso County", etc.
+  ) %>%
+  dplyr::inner_join(
+    border_counties,
+    by = c("State_join" = "State_Name",
+           "County_join" = "County")
+  ) %>%
+  dplyr::group_by(State_join, County_join) %>%
+  dplyr::summarise(
+    Avg_Rent = mean(B25058EST1, na.rm = TRUE) * 12, # Multiply by 12 to turn monthly to yearly
+    .groups = "drop"
+  ) %>%
+  dplyr::rename(
+    State  = State_join,
+    County = County_join
+  )
+
+# View the result
+print(border_rents)
+
+
+## Read in Income Data 
+
+average_income <- read_csv("IncomeData.csv")
+
+head(average_income)
+
+# Check class of rent variable 
+class(average_income$B19013EST1)
+
+## Create US total data frame while averaging all the years together per county
+US_Average_Income <- average_income %>%
+  dplyr::summarise(
+    US_Average_Income = mean(B19013EST1, na.rm = TRUE)
+  )
+
+US_Average_Income # Check average 
+
+## Add to existing US Total DF
+
+US_total <- US_total %>%
+  dplyr::mutate(
+    US_Income = US_Average_Income$US_Average_Income
+  )
+
+## Calculate Annual Rent / Income for US Total 
+US_total <- US_total %>%
+  dplyr::mutate(
+    US_Rent_to_Income_Pct = US_Rent / US_Income
+  )
+
+
+
+# Filter and calculate average rent rates for border counties
+border_incomes <- average_income %>%              # average_rent is RentData.csv
+  dplyr::mutate(
+    State_join  = STATE_NAME,                 # "Arizona", "California", etc.
+    County_join = paste0(NAME, " County")     # "Cochise County", "El Paso County", etc.
+  ) %>%
+  dplyr::inner_join(
+    border_counties,
+    by = c("State_join" = "State_Name",
+           "County_join" = "County")
+  ) %>%
+  dplyr::group_by(State_join, County_join) %>%
+  dplyr::summarise(
+    Avg_Income = mean(B19013EST1, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  dplyr::rename(
+    State  = State_join,
+    County = County_join
+  )
+
+# View the result
+print(border_incomes)
+
+
+# Join rent and income data for border counties
+border_rent_income <- border_rents %>%
+  dplyr::inner_join(
+    border_incomes,       # <— replace with your actual income df name if different
+    by = c("State", "County")
+  ) %>%
+  dplyr::mutate(
+    Rent_to_Income_Pct = Avg_Rent / Avg_Income
+  )
+
+print(border_rent_income)
+
+# Join with your existing data
+US_border_county_data <- US_border_county_data %>%
+  left_join(border_rent_income, 
+            by = c("County" = "County", 
+                   "State_Name" = "State"))
+
+US_border_county_data
+
+```
+
+Food Access Variable 
+
+```{r}
+
+
+food_access <- read_excel("FoodAccessResearchAtlasData2019.xlsx", sheet = "Food Access Research Atlas")
+
+head(food_access)
+
+# Check class and fix to numeric 
+class(food_access$lapop1share)
+
+
+food_access$lapop1share <- parse_number(food_access$lapop1share)
+
+
+## Create US total data frame while averaging all the years together per county
+US_total_food_access <- food_access %>%
+  dplyr::summarise(
+    US_Food_Access_Rate = mean(lapop1share, na.rm = TRUE)
+  )
+
+US_total_food_access
+
+## Add to Total US DF
+
+US_total <- US_total %>%
+  mutate(
+    US_Food_Access_Rate = US_total_food_access$US_Food_Access_Rate
+  )
+
+# Filter and calculate average food access rates for border counties
+border_food_access <- food_access %>%
+  dplyr::inner_join(
+    border_counties,
+    by = c("County" = "County", "State" = "State_Name")
+  ) %>%
+  dplyr::group_by(State, County) %>%
+  dplyr::summarise(
+    Food_Access_Rate = mean(lapop1share, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+# View the result
+print(border_food_access)
+
+
+# Add to the final data frame 
+US_border_county_data <- US_border_county_data %>%
+  left_join(border_food_access, 
+            by = c("County" = "County", 
+                   "State_Name" = "State"))
+
+US_border_county_data
+```
+
+Check Final Data Frames
+
+```{r}
+print(US_total)
+
+print(US_border_county_data)
+```
+
+Save Final DFs to a CSV
+
+```{r}
+# Save US_total dataframe
+write.csv(US_total,
+          file = "US_total.csv",
+          row.names = FALSE)
+
+# Save US_border_county_data dataframe
+write.csv(US_border_county_data,
+          file = "US_border_county_data.csv",
+          row.names = FALSE)
+
+```
+
+
+
